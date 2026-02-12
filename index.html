@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Amount to Thai Converter</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; border: 1px solid #ccc; padding: 20px; border-radius: 8px; }
+        input { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        #result { margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 4px; min-height: 50px; }
+        .formatted-num { font-weight: bold; color: #333; }
+        .thai-text { display: block; margin-top: 10px; color: #d9534f; font-size: 1.2em; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>タイ語数値変換</h2>
+    <p>数値を入力してください（例: 1234567.89）</p>
+    <input type="text" id="amountInput" placeholder="数値（0で終了は不要です）">
+    <button onclick="processConversion()">変換する</button>
+
+    <div id="result">
+        </div>
+</div>
+
+<script>
+/**
+ * C言語の amt2thai 関数を移植
+ * @param {number} wt - 数値
+ * @param {number} param - 0: 通常, 1: 小数点以下（点読み）
+ */
+function amt2thai(wt, param) {
+    const bur = ["", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
+    const lak = ["", "สิบ", "ร้อย", "พัน", "หมืน", "แสน"];
+    
+    let rslt = "";
+    let wstr = wt.toString();
+    let k = wstr.length;
+
+    for (let e = 0; e < k; e++) {
+        let digit = parseInt(wstr[e]);
+        let wstr1 = bur[digit];
+
+        if (param === 0) {
+            // 10の位の「1」を省略 (例: 10 -> sip, 11 -> sip-et)
+            if (e === k - 2 && digit === 1) {
+                wstr1 = "";
+            }
+            // 20の位の「2」を「yee」に変更 (例: 20 -> yee-sip)
+            if (e === k - 2 && digit === 2) {
+                wstr1 = "ยี่";
+            }
+            // 1の位の「1」を「et」に変更 (1より大きい数の場合)
+            if (e === k - 1 && digit === 1 && wt > 1) {
+                wstr1 = "เอ็ด";
+            }
+        }
+
+        rslt += wstr1;
+
+        // 桁の名前を追加 (param=0 の場合のみ)
+        if (digit !== 0 && param === 0) {
+            rslt += lak[k - e - 1];
+        }
+    }
+    return rslt;
+}
+
+function processConversion() {
+    const input = document.getElementById('amountInput').value.trim();
+    const resultDiv = document.getElementById('result');
+    
+    if (input === "" || isNaN(parseFloat(input))) {
+        resultDiv.innerHTML = "有効な数値を入力してください。";
+        return;
+    }
+
+    let wamt = input;
+    // 小数点の処理
+    let sdec = wamt.indexOf(".");
+    let ddecPart = 0;
+    if (sdec === -1) {
+        wamt += ".00";
+    } else {
+        let decimalStr = wamt.substring(sdec + 1);
+        // C言語版に合わせて2桁分を考慮
+        ddecPart = parseInt(decimalStr.substring(0, 2)) || 0;
+    }
+
+    // 整数部分を24桁（6x4）として扱うためのパディング処理
+    let integerPart = Math.floor(parseFloat(wamt)).toString();
+    let paddedAmt = integerPart.padStart(24, '0');
+
+    let nums = [];
+    for (let i = 0; i < 4; i++) {
+        nums[i] = parseInt(paddedAmt.substring(i * 6, (i + 1) * 6));
+    }
+
+    let trslt = "";
+    if (nums[0] > 0) trslt += amt2thai(nums[0], 0) + "ล้านล้านล้าน";
+    if (nums[1] > 0) trslt += amt2thai(nums[1], 0) + "ล้านล้าน";
+    if (nums[2] > 0) trslt += amt2thai(nums[2], 0) + "ล้าน";
+    
+    if (nums[3] > 0) {
+        if ((nums[0] + nums[1] + nums[2] > 0) && nums[3] === 1) {
+            trslt += "เอ็ด";
+        } else {
+            trslt += amt2thai(nums[3], 0);
+        }
+    } else if (trslt === "" && ddecPart === 0) {
+        trslt = "ศูนย์"; // 0の場合
+    }
+
+    // 小数点（点読み）の処理
+    if (ddecPart > 0) {
+        trslt += "จุด" + amt2thai(ddecPart, 1);
+    }
+
+    // 3桁区切りのフォーマット
+    let formattedNum = parseFloat(wamt).toLocaleString(undefined, { minimumFractionDigits: 2 });
+
+    resultDiv.innerHTML = `
+        <div class="formatted-num">${formattedNum}</div>
+        <div class="thai-text">${trslt}</div>
+    `;
+}
+</script>
+
+</body>
+</html>
+
